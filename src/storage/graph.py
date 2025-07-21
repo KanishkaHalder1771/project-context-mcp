@@ -1,166 +1,24 @@
 """
 Neo4j Knowledge Graph Builder for Design Conversations
 """
-
-import os
 from typing import Optional
 from neo4j import GraphDatabase
-from neo4j_graphrag.llm import AzureOpenAILLM
+from neo4j_graphrag.llm import AzureOpenAILLM, OpenAILLM
 from neo4j_graphrag.embeddings.openai import AzureOpenAIEmbeddings
-from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
-from pydantic import BaseModel
+
 
 # Add imports for custom resolver
-from neo4j_graphrag.experimental.components.resolver import SpaCySemanticMatchResolver, BasePropertySimilarityResolver
-from neo4j_graphrag.experimental.pipeline.config.template_pipeline.simple_kg_builder import SimpleKGPipelineConfig
+from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 
 from .models import NEO4J_SCHEMA
+from .pipeline import CustomKGPipeline
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from config import settings, AzureConfig
 
 
-class LLMSimilarityResolver(BasePropertySimilarityResolver):
-    """Custom resolver that uses a small LLM to compute entity similarity"""
-    
-    def __init__(
-        self,
-        driver,
-        filter_query=None,
-        resolve_properties=None,
-        similarity_threshold=0.8,
-        neo4j_database=None,
-        llm=None
-    ):
-        super().__init__(driver, filter_query, resolve_properties, similarity_threshold, neo4j_database)
-        self.llm = llm  # Small 3B LLM will be injected here
-    
-    def compute_similarity(self, text_a: str, text_b: str) -> float:
-        """
-        Use LLM to compute similarity between two entity texts
-        Returns a similarity score between 0.0 and 1.0
-        """
-        if not self.llm:
-            # Fallback to simple string matching if no LLM available
-            return 1.0 if text_a.lower() == text_b.lower() else 0.0
-        
-        # LLM prompt for similarity scoring
-        prompt = f"""Compare these two entity descriptions and rate their similarity from 0.0 to 1.0:
 
-Entity A: {text_a}
-Entity B: {text_b}
-
-Consider:
-- Are they referring to the same thing?
-- Do they have similar meaning or function?
-- Are they just different ways to describe the same entity?
-
-Return only a number between 0.0 (completely different) and 1.0 (identical). Do not return any other text, exactly this format:
-{{"similarity_score": 0.5}}"""
-        
-        try:
-            # Call the small LLM to get similarity score
-            response = self.llm.invoke(prompt)
-            # Extract the numeric score from response
-            score_text = response.content.strip()
-            
-            # Try to parse the score as a float
-            try:
-                similarity_score = float(score_text)
-                # Clamp the score between 0.0 and 1.0
-                return min(max(similarity_score, 0.0), 1.0)
-            except ValueError:
-                # If parsing fails, try to extract first number from response
-                import re
-                numbers = re.findall(r'0?\.\d+|[01]\.?\d*', score_text)
-                if numbers:
-                    similarity_score = float(numbers[0])
-                    return min(max(similarity_score, 0.0), 1.0)
-                else:
-                    print(f"⚠️ Could not parse similarity score from: {score_text}")
-                    # Fallback to exact matching
-                    return 1.0 if text_a.lower() == text_b.lower() else 0.0
-            
-        except Exception as e:
-            print(f"⚠️ LLM similarity computation failed: {e}")
-            # Fallback to exact matching
-            return 1.0 if text_a.lower() == text_b.lower() else 0.0
-
-
-class CustomKGPipelineConfig(SimpleKGPipelineConfig):
-    """Custom pipeline configuration that uses different resolvers based on entity_resolution_type"""
-    
-    def __init__(self, entity_resolution_type="exact", resolution_similarity_threshold=0.8, azure_slm_config: Optional[AzureConfig] = None, **kwargs):
-        super().__init__(**kwargs)
-        self.entity_resolution_type = entity_resolution_type
-        self.resolution_similarity_threshold = resolution_similarity_threshold
-        self.azure_slm_config = azure_slm_config
-    
-    def _get_resolver(self):
-        """Override to use different resolvers based on entity_resolution_type"""
-        if not self.perform_entity_resolution or self.entity_resolution_type == "none":
-            return None
-        elif self.entity_resolution_type == "exact":
-            from neo4j_graphrag.experimental.components.resolver import SinglePropertyExactMatchResolver
-            return SinglePropertyExactMatchResolver(
-                driver=self.get_default_neo4j_driver(),
-                neo4j_database=self.neo4j_database,
-                resolve_property="name"
-            )
-        elif self.entity_resolution_type == "spacy":
-            return SpaCySemanticMatchResolver(
-                driver=self.get_default_neo4j_driver(),
-                neo4j_database=self.neo4j_database,
-                similarity_threshold=self.resolution_similarity_threshold,
-                spacy_model="en_core_web_lg",
-                resolve_properties=["name"]
-            )
-        elif self.entity_resolution_type == "fuzzy":
-            from neo4j_graphrag.experimental.components.resolver import FuzzyMatchResolver
-            return FuzzyMatchResolver(
-                driver=self.get_default_neo4j_driver(),
-                neo4j_database=self.neo4j_database,
-                similarity_threshold=self.resolution_similarity_threshold,
-                resolve_properties=["name"]
-            )
-        elif self.entity_resolution_type == "llm":
-            # Create small LLM for entity resolution
-            small_llm = self._create_small_llm()
-            return LLMSimilarityResolver(
-                driver=self.get_default_neo4j_driver(),
-                neo4j_database=self.neo4j_database,
-                similarity_threshold=self.resolution_similarity_threshold,
-                resolve_properties=["name", "description"],
-                llm=small_llm
-            )
-        else:
-            raise ValueError(f"Unknown entity resolution type: {self.entity_resolution_type}")
-    
-    def _create_small_llm(self):
-        """Create the small LLM instance for entity resolution"""
-        # Validate Azure SLM configuration
-        if not self.azure_slm_config:
-            print("⚠️ Azure SLM configuration not provided for LLM resolver")
-            return None
-        
-        # Initialize small LLM using Azure SLM configuration
-        try:
-            small_llm = AzureOpenAILLM(
-                model_name=self.azure_slm_config.deployment_name,
-                azure_endpoint=self.azure_slm_config.endpoint,
-                api_version=self.azure_slm_config.api_version,
-                api_key=self.azure_slm_config.api_key,
-                model_params={
-                    "temperature": 0.0,  # Deterministic for similarity scoring
-                    "max_tokens": 10,    # We only need a similarity score (0.0-1.0)
-                }
-            )
-            print(f"✅ Small LLM initialized: {self.azure_slm_config.deployment_name}")
-            return small_llm
-        except Exception as e:
-            print(f"❌ Failed to initialize small LLM: {e}")
-            return None
 
 
 class GraphBuilder:
@@ -288,15 +146,46 @@ Input text:
 {text}
 """
         
-        # Pipeline setup - Using SimpleKGPipeline with entity resolution enabled
-        self.pipeline = SimpleKGPipeline(
+        # Create SLM if available for LLM-based entity resolution
+        slm = None
+        if self.azure_slm_config and self.entity_resolution_type == "llm":
+            try:
+                # slm = AzureOpenAILLM(
+                #     model_name=self.azure_slm_config.deployment_name,
+                #     azure_endpoint=self.azure_slm_config.endpoint,
+                #     api_version=self.azure_slm_config.api_version,
+                #     api_key=self.azure_slm_config.api_key,
+                #     model_params={
+                #         "temperature": 0.8,  # Deterministic for similarity scoring
+                #         "max_tokens": 2048,    # We only need a similarity score (0.0-1.0)
+                #         "top_p": 0.1,
+                #         "frequency_penalty": 0.0,
+                #         "presence_penalty": 0.0
+                #     }
+                # )
+                slm = OpenAILLM(
+                    model_name="Qwen/Qwen3-1.7B",
+                    api_key=self.azure_slm_config.api_key,
+                    base_url="http://localhost:8000/v1"
+                )
+                print(f"✅ Small LLM initialized: {self.azure_slm_config.deployment_name}")
+            except Exception as e:
+                print(f"❌ Failed to initialize small LLM: {e}")
+                slm = None
+
+        # Pipeline setup - Using CustomKGPipeline with configurable entity resolution
+        self.pipeline = CustomKGPipeline(
             llm=self.llm,
             driver=self.driver,
             embedder=self.embedder,
-            from_pdf=False,
+            slm=slm,
+            entity_resolution_type=self.entity_resolution_type,
+            resolution_similarity_threshold=self.resolution_similarity_threshold,
             schema=NEO4J_SCHEMA,
             prompt_template=self.custom_prompt,
-            perform_entity_resolution=True  # Enable built-in entity resolution for now
+            perform_entity_resolution=True,
+            from_pdf=False,
+            neo4j_database=None,
         )
     
     async def build_graph_from_text(self, text: str) -> None:

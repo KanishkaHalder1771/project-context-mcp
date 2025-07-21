@@ -11,7 +11,7 @@ from config import settings
 
 def test_simple_conversation():
     """Test with a simple design conversation"""
-    convo2 = "We will also have a Go worker. So from the frontend someone signs up for the waitlist we will run a Background verification job using this Go worker, this when done will update the supabase database with the users status and details." 
+    
     convo1 = """
     1. Overview
 We will build a landing website that allows users to join a waitlist and contact the developers. The system will include:
@@ -119,7 +119,10 @@ API routes will validate input and check authentication when required.
 
 Supabase service keys are server-side only.
     """
-    conversation = convo1
+    convo2 = "We will also have a Go worker. So from the frontend someone signs up for the waitlist we will run a Background verification job using this Go worker, this when done will update the supabase database with the users status and details." 
+    convo3 = "So the Communication service will produce a message to RabbitMq which will be consumed by the go worker"
+    
+    conversation = convo3
     print("Testing simple conversation:")
     print(conversation)
     print("-" * 50)

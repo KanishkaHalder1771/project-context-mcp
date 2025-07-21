@@ -12,4 +12,4 @@ def setup_development_environment():
     pass
 
 if __name__ == "__main__":
-    setup_development_environment() 
+    setup_development_environment()
