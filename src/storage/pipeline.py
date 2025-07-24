@@ -32,47 +32,269 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
         self.llm = llm  # Small 3B LLM will be injected here
     
     async def run(self) -> ResolutionStats:
-        return await super().run()
-    
-    def compute_similarity(self, text_a: str, text_b: str) -> float:
+        """Custom run method that concatenates properties instead of discarding them"""
+        from itertools import combinations
+        
+        match_query = "MATCH (entity:__Entity__)"
+        if self.filter_query:
+            match_query += f" {self.filter_query}"
+
+        # Get all properties for each entity, grouped by their actual node type
+        query = f"""
+            {match_query}
+            UNWIND labels(entity) AS lab
+            WITH lab, entity
+            WHERE NOT lab IN ['__Entity__', '__KGBuilder__']
+            WITH lab, collect({{
+                id: elementId(entity),
+                props: properties(entity),
+                nodeType: lab
+            }}) AS labelCluster
+            RETURN lab, labelCluster
         """
-        Use LLM to compute similarity between two entity texts
+
+        records, _, _ = self.driver.execute_query(query, database_=self.neo4j_database)
+
+        total_entities = 0
+        total_merged_nodes = 0
+
+        # for each label/type, process entities
+        for row in records:
+            node_type = row["lab"]
+            entities = row["labelCluster"]
+
+            # Build data for similarity comparison - only using name, grouped by type
+            node_names = {}
+            node_properties = {}
+            
+            for ent in entities:
+                entity_props = ent["props"]
+                node_properties[ent["id"]] = entity_props
+                
+                # Get name only
+                name = str(entity_props.get("name", "")).strip()
+                
+                if name:  # Only include entities that have a name
+                    node_names[ent["id"]] = name
+                    
+            total_entities += len(node_names)
+
+            # compute pairwise similarity within the same node type and mark those above the threshold
+            pairs_to_merge = []
+            for (id1, name1), (id2, name2) in combinations(node_names.items(), 2):
+                sim = self.compute_similarity(name1, name2, node_type)
+                if sim >= self.similarity_threshold:
+                    pairs_to_merge.append({id1, id2})
+
+            # consolidate overlapping pairs into unique merge sets
+            merged_sets = self._consolidate_sets(pairs_to_merge)
+
+            # perform custom merges with property concatenation
+            merged_count = 0
+            for node_id_set in merged_sets:
+                if len(node_id_set) > 1:
+                    # Get all properties from nodes to merge
+                    merged_props = {}
+                    node_ids = list(node_id_set)
+                    
+                    for node_id in node_ids:
+                        props = node_properties[node_id]
+                        for key, value in props.items():
+                            if value is not None and str(value).strip():
+                                if key == "name":
+                                    # For name, keep the first non-empty value
+                                    if key not in merged_props:
+                                        merged_props[key] = value
+                                else:
+                                    # For other properties, concatenate with delimiter
+                                    if key not in merged_props:
+                                        merged_props[key] = str(value)
+                                    else:
+                                        existing = str(merged_props[key])
+                                        new_value = str(value)
+                                        if new_value not in existing:  # Avoid duplicates
+                                            merged_props[key] = f"{existing} | {new_value}"
+                    
+                    # Create the merge query with custom property handling
+                    merge_query = """
+                        MATCH (n) WHERE elementId(n) IN $ids
+                        WITH collect(n) AS nodes
+                        WITH nodes[0] AS firstNode, nodes
+                        SET firstNode += $mergedProps
+                        WITH firstNode, nodes[1..] AS otherNodes
+                        UNWIND otherNodes AS otherNode
+                        CALL apoc.refactor.mergeNodes([firstNode, otherNode], {
+                            properties: 'discard',
+                            mergeRels: true
+                        })
+                        YIELD node
+                        RETURN elementId(node)
+                    """
+                    
+                    result, _, _ = self.driver.execute_query(
+                        merge_query,
+                        {
+                            "ids": node_ids,
+                            "mergedProps": merged_props
+                        },
+                        database_=self.neo4j_database,
+                    )
+                    merged_count += len(result)
+            
+            total_merged_nodes += merged_count
+
+        return ResolutionStats(
+            number_of_nodes_to_resolve=total_entities,
+            number_of_created_nodes=total_merged_nodes,
+        )
+    
+    def compute_similarity(self, name_a: str, name_b: str, node_type: str) -> float:
+        """
+        Use LLM to compute similarity between two entity names of the same type
         Returns a similarity score between 0.0 and 1.0
         """
         if not self.llm:
             # Fallback to simple string matching if no LLM available
-            return 1.0 if text_a.lower() == text_b.lower() else 0.0
+            return 1.0 if name_a.lower() == name_b.lower() else 0.0
         
-        # LLM prompt for similarity scoring
+        if node_type == "Component":
+            nodeType_based_prompt = f"""These nodes are Components of a Software System, these are services like a Authentication Service, or API Service, things like those.
+            Examples:
+            Example 1:
+            Node1: Authentication Service
+            Node2: Auth Service
+            Similarity : 1.0
+
+            Example 2:
+            Node1: Frontend App
+            Node2: Frontend
+            Similarity : 0.9
+
+            Example 3:
+            Node1: Waitlist Service
+            Node2: Waitlist
+            Similarity : 0.9
+
+            Example 4:
+            Node1: Contact Service
+            Node2: Auth Service
+            Similarity : 0
+
+            Example 5:
+            Node1: API Service
+            Node2: Backend Service
+            Similarity : 0.5
+
+            Example 6:
+            Node1: Frontend Service
+            Node2: Database
+            Similarity : 0.0
+            """
+        elif node_type == "Technology":
+            nodeType_based_prompt = f"""These nodes are Technologies of a Software System, these are programming languages, frameworks, tools, etc. Like Redis, Kafka, MySQL, PostGres DB, Firebase, Next.js, Typescript, Python etc.
+            Examples:
+            Example 1:
+            Node1: Python
+            Node2: Python Language
+            Similarity : 1.0
+
+            Example 2:
+            Node1: Next.js
+            Node2: Next.js Framework
+            Similarity : 0.9
+
+            Example 3:
+            Node1: Redis
+            Node2: Kafka
+            Similarity : 0.0
+
+            Example 4:
+            Node1: Supabase
+            Node2: Firebase
+            Similarity : 0.0
+
+            Example 5:
+            Node1: Supabase Auth
+            Node2: Supabase Database
+            Similarity : 0.5
+
+            Example 6:
+            Node1: Redis
+            Node2: reds
+            Similarity : 0.9
+
+            Example 7:
+            Node1: Redis
+            Node2: Redis BullMQ
+            Similarity : 0.6
+            """
+        elif node_type == "Decision":
+            nodeType_based_prompt = f"""These nodes are Decisions of a Software System, these are decisions like to use a specific technology, or to use a specific service, or to use a specific architecture, etc. These are major level decisions that are made on the project level.
+            Examples:
+            Example 1:
+            Node1: Use REST API Framework
+            Node2: Use GraphQL Framework
+            Similarity : 0.5
+
+            Example 2:
+            Node1: Use REST API Framework
+            Node2: Use REST Framework
+            Similarity : 1.0
+
+            Example 3:
+            Node1: Use REST API Framework
+            Node2: Use NoSQL databases
+            Similarity : 0.0
+            """
+        else:
+            nodeType_based_prompt = f"Both nodes are of type: {node_type}"
+
+        # LLM prompt for similarity scoring using names and node type context
         prompt = f"""I have a neo4j graph with some software services and technologies as nodes, i want to merge any similar or duplicate nodes, so for that i need you to tell me if the following nodes are the same or not. 
-Node1: {text_a}
-Node2: {text_b}
-give me just a number between 0 to 1, 1 is same, 0 is not same, it will act as the scoring of how similar these nodes are. just give this number as output no explanation or anything, just the number"""
+        Both nodes are of type: {node_type}
+        {nodeType_based_prompt}
+        Node1: {name_a}
+        Node2: {name_b}
+        give me a score of how similar these nodes are. give me just a number between 0 to 1, 1 is same, 0 is not same, it will act as the scoring of how similar these nodes are. just give this number as output no explanation or anything, just the number"""
         
         try:
             # Call the small LLM to get similarity score
-            response = self.llm.invoke(prompt)
+            # response = self.llm.invoke(prompt)
             # Extract the numeric score from response
-            score_text = response.content.strip()
+            # score_text = response.content.strip()
             
             # Make API call to local vLLM server
             import requests
-            
+            import json            
+
             api_url = "http://localhost:8000/v1/chat/completions"
-            payload = {
-                "model": "Qwen/Qwen3-1.7B",
-                "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"I have a neo4j graph with some software services and technologies as nodes, i want to merge any similar or duplicate nodes, so for that i need you to tell me if the following nodes are the same or not. Node1: {text_a} Node2: {text_b}, give me just a number between 0 to 1, 1 is same, 0 is not same, it will act as the scoring of how similar these nodes are. just give this number as output no explanation or anything, just the number"}
-                ],
-                "max_tokens": 2000
+            payload = json.dumps({
+            "model": "Qwen/Qwen3-1.7B",
+            "messages": [
+                {
+                "role": "system",
+                "content": "You are a helpful assistant."
+                },
+                {
+                "role": "user",
+                "content": prompt
+                }
+            ],
+            "max_tokens": 2000
+            })
+            headers = {
+            'Content-Type': 'application/json'
             }
+
+            response = requests.request("POST", api_url, headers=headers, data=payload)
             
-            response = requests.post(api_url, json=payload, headers={'Content-Type': 'application/json'})
+            # response = requests.post(api_url, json=payload, headers={'Content-Type': 'application/json'})
             response_data = response.json()
             score_text = response_data['choices'][0]['message']['content'].strip()
             
-            print(f"Comparing Components: {text_a} and {text_b}")
+            print(f"Comparing {node_type} Components:")
+            print(f"  Node1: {name_a}")
+            print(f"  Node2: {name_b}")
             print(f"Score text: {score_text}")
             print(f"Response: {response_data}")
             # Try to parse the score as a float
@@ -91,12 +313,12 @@ give me just a number between 0 to 1, 1 is same, 0 is not same, it will act as t
                 else:
                     print(f"⚠️ Could not parse similarity score from: {score_text}")
                     # Fallback to exact matching
-                    return 1.0 if text_a.lower() == text_b.lower() else 0.0
+                    return 1.0 if name_a.lower() == name_b.lower() else 0.0
             
         except Exception as e:
             print(f"⚠️ LLM similarity computation failed: {e}")
             # Fallback to exact matching
-            return 1.0 if text_a.lower() == text_b.lower() else 0.0
+            return 1.0 if name_a.lower() == name_b.lower() else 0.0
 
 
 class CustomKGPipelineConfig(SimpleKGPipelineConfig):

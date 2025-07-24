@@ -119,10 +119,14 @@ API routes will validate input and check authentication when required.
 
 Supabase service keys are server-side only.
     """
-    convo2 = "We will also have a Go worker. So from the frontend someone signs up for the waitlist we will run a Background verification job using this Go worker, this when done will update the supabase database with the users status and details." 
-    convo3 = "So the Communication service will produce a message to RabbitMq which will be consumed by the go worker"
+    convo2 = """We will also introduce a dedicated Go-based worker service as part of the system architecture. This worker will handle background tasks that need to run asynchronously, separate from the main application flow. For example, when a user signs up for the waitlist through the frontend application, their information will be recorded in the database. At that point, the Go worker will pick up a background verification job from a task queue or event trigger. This job may include verifying the user’s details, performing any required checks, or enriching their profile data.
+
+Once the background verification process is complete, the worker will update the Supabase database with the user’s verification status and any additional details obtained during the process. This ensures that the frontend can always display the latest status to the user without blocking their initial signup experience. By offloading these tasks to the Go worker, we keep the user experience fast and responsive while maintaining a reliable and scalable verification process.
+
+""" 
+    convo3 = "The Frontend will also be connected to a Live monitoring service (Posthog) to capture user sessions, this will keep collecting user session data from time to time."
     
-    conversation = convo3
+    conversation = convo1
     print("Testing simple conversation:")
     print(conversation)
     print("-" * 50)

@@ -111,7 +111,7 @@ Node Types:
     Software modules, services, systems, applications, microservices, these are highlevel services like the auth service, the communication service, frontend, backend, 
     For components you can group similar files/services into a component node, for example description about JWT tokens, OAuth2, etc might comeunder the auth service node
 - Technology: Frameworks, databases, protocols, tools, libraries , these will be exact tech name like Nextjs, Redis, MySQL, Postgres and other tech or framework names like these, these technology names should only contain the tech name not why its used its description should not justify why its being used, just the common name of this tech for example for Redis name is just redis nothing else.
-- Decision: Architectural choices, design patterns, technical decisions
+- Decision: Architectural choices, design patterns, technical decisions, these will be major tech decisions like using REST or gRPC for APIs, or using NoSQL or SQL database, not simple decisions to just use a specific tech or framework, if a detailed information is given why a specific tech is being selected then it should be a decision node.
 
 Relationship Types:
 - USES: When a component uses a technology or another component
