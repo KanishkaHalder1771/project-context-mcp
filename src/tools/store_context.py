@@ -3,29 +3,25 @@ Store Context MCP Tool
 """
 
 # from mcp.server import Server
+from ..services.context_manager import ContextManager
 
 
-def register_store_context_tool(server, context_manager):
+def register_store_context_tool(server, context_manager=None):
     """Register the store_context MCP tool"""
     
-    # @server.tool("store_context")
-    # async def store_context(content: str, category: str = "auto") -> dict:
-    #     """Universal context storage tool"""
-    #     try:
-    #         result = await context_manager.store_context(content, category)
-    #         return {
-    #             "success": True,
-    #             "action": result['action'],
-    #             "title": result['title'],
-    #             "category": result['category'],
-    #             "context_id": result['context_id'],
-    #             "relationships_created": len(result['relationships'])
-    #         }
-    #     except Exception as e:
-    #         return {
-    #             "success": False,
-    #             "error": str(e)
-    #         }
+    # Get singleton instance of ContextManager
+    if context_manager is None:
+        context_manager = ContextManager()
     
-    # TODO: Implement store_context tool
-    pass 
+    @server.tool("store_context")
+    async def store_context(content: str) -> dict:
+        if not content or not content.strip():
+            return {
+                "success": False,
+                "message": "Content cannot be empty"
+            }
+        
+        # Use the singleton GraphBuilder through ContextManager
+        result = await context_manager.store_context(content.strip())
+        
+        return result 

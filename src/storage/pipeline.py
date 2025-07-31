@@ -189,69 +189,21 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
             Node1: Frontend Service
             Node2: Database
             Similarity : 0.0
+
+            
             """
         elif node_type == "Technology":
             nodeType_based_prompt = f"""These nodes are Technologies of a Software System, these are programming languages, frameworks, tools, etc. Like Redis, Kafka, MySQL, PostGres DB, Firebase, Next.js, Typescript, Python etc.
-            Examples:
-            Example 1:
-            Node1: Python
-            Node2: Python Language
-            Similarity : 1.0
-
-            Example 2:
-            Node1: Next.js
-            Node2: Next.js Framework
-            Similarity : 0.9
-
-            Example 3:
-            Node1: Redis
-            Node2: Kafka
-            Similarity : 0.0
-
-            Example 4:
-            Node1: Supabase
-            Node2: Firebase
-            Similarity : 0.0
-
-            Example 5:
-            Node1: Supabase Auth
-            Node2: Supabase Database
-            Similarity : 0.5
-
-            Example 6:
-            Node1: Redis
-            Node2: reds
-            Similarity : 0.9
-
-            Example 7:
-            Node1: Redis
-            Node2: Redis BullMQ
-            Similarity : 0.6
             """
         elif node_type == "Decision":
             nodeType_based_prompt = f"""These nodes are Decisions of a Software System, these are decisions like to use a specific technology, or to use a specific service, or to use a specific architecture, etc. These are major level decisions that are made on the project level.
-            Examples:
-            Example 1:
-            Node1: Use REST API Framework
-            Node2: Use GraphQL Framework
-            Similarity : 0.5
-
-            Example 2:
-            Node1: Use REST API Framework
-            Node2: Use REST Framework
-            Similarity : 1.0
-
-            Example 3:
-            Node1: Use REST API Framework
-            Node2: Use NoSQL databases
-            Similarity : 0.0
             """
         else:
             nodeType_based_prompt = f"Both nodes are of type: {node_type}"
 
         # LLM prompt for similarity scoring using names and node type context
         prompt = f"""I have a neo4j graph with some software services and technologies as nodes, i want to merge any similar or duplicate nodes, so for that i need you to tell me if the following nodes are the same or not. 
-        Both nodes are of type: {node_type}
+        For similar nodes give higher , for different nodes give low score.
         {nodeType_based_prompt}
         Node1: {name_a}
         Node2: {name_b}

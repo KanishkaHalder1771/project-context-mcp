@@ -3,26 +3,21 @@ Get Related Contexts MCP Tool
 """
 
 # from mcp.server import Server
+from ..services.context_manager import ContextManager
 
 
-def register_get_related_tool(server, context_manager):
+def register_get_related_tool(server, context_manager=None):
     """Register the get_related_contexts MCP tool"""
     
-    # @server.tool("get_related_contexts")
-    # async def get_related_contexts(topic: str, category: str = None, depth: int = 2) -> dict:
-    #     """Find everything connected to or related to a specific topic"""
-    #     try:
-    #         related = await context_manager.get_related_contexts(topic, category, depth)
-    #         return {
-    #             "success": True,
-    #             "related_contexts": related,
-    #             "count": len(related)
-    #         }
-    #     except Exception as e:
-    #         return {
-    #             "success": False,
-    #             "error": str(e)
-    #         }
+    # Get singleton instance of ContextManager
+    if context_manager is None:
+        context_manager = ContextManager()
     
-    # TODO: Implement get_related_contexts tool
-    pass 
+    @server.tool("get_related_contexts")
+    async def get_related_contexts(query: str) -> dict:
+        """Find contexts related to a query - dummy implementation"""
+        return {
+            "success": True,
+            "message": f"get_related_contexts not implemented yet - searched for: {query}",
+            "results": []
+        } 

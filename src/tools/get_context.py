@@ -3,26 +3,21 @@ Get Context MCP Tool
 """
 
 # from mcp.server import Server
+from ..services.context_manager import ContextManager
 
 
-def register_get_context_tool(server, context_manager):
+def register_get_context_tool(server, context_manager=None):
     """Register the get_context MCP tool"""
     
-    # @server.tool("get_context")
-    # async def get_context(topic: str, category: str = None, max_results: int = 5) -> dict:
-    #     """Retrieve contexts about a specific topic"""
-    #     try:
-    #         contexts = await context_manager.get_contexts_by_topic(topic, category, max_results)
-    #         return {
-    #             "success": True,
-    #             "contexts": contexts,
-    #             "count": len(contexts)
-    #         }
-    #     except Exception as e:
-    #         return {
-    #             "success": False,
-    #             "error": str(e)
-    #         }
+    # Get singleton instance of ContextManager
+    if context_manager is None:
+        context_manager = ContextManager()
     
-    # TODO: Implement get_context tool
-    pass 
+    @server.tool("get_context")
+    async def get_context(query: str) -> dict:
+        """Retrieve contexts using semantic search - dummy implementation"""
+        return {
+            "success": True,
+            "message": f"get_context not implemented yet - searched for: {query}",
+            "results": []
+        } 

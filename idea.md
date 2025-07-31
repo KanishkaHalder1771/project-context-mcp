@@ -69,102 +69,74 @@ Example relationships:
 - **Auto-Processing**: System detects "auth" category with 92% confidence
 - **Smart Response**: "✅ Saved as 'JWT Authentication with Redis' in 'auth' category"
 
-## Streamlined MCP Tools (5 Tools Total)
+## Ultra-Simple MCP Tools (4 Tools Total)
 
-**Design Philosophy**: Simple, intuitive tools that LLMs can easily understand and use. No complex parameters or context IDs - just natural language descriptions.
+**Design Philosophy**: Minimal interface with maximum intelligence. No categories, no complex parameters - just natural language content and queries.
 
-### 1. **`list_categories`**
-- **Purpose**: Show LLM what context categories exist in this project
-- **Params**: None
-- **Output**: Array of available categories with counts
-  ```json
-  {
-    "categories": [
-      {"name": "auth", "count": 5, "description": "Authentication and authorization"},
-      {"name": "api", "count": 12, "description": "API endpoints and integrations"}, 
-      {"name": "database", "count": 8, "description": "Database schemas and queries"},
-      {"name": "ui_ux", "count": 3, "description": "User interface components"}
-    ]
-  }
-  ```
-
-### 2. **`store_context`**
+### 1. **`store_context`**
 - **Purpose**: Universal storage tool - handles both creating new contexts and updating existing ones automatically
 - **Params**: 
   - `content` (string, required): The context content to store
-  - `category` (string, optional): Target category ("auto" for auto-detection)
-- **Output**: Action taken, final context title, category assigned, any duplicates found
+- **Output**: Action taken, final context title, auto-detected category, any duplicates found/merged
 - **Smart Features**:
-  - Auto-detects category if not specified
-  - Finds similar existing contexts and offers update/merge options
+  - Auto-detects category internally (no user input needed)
+  - Finds similar existing contexts and auto-merges or updates
   - Creates relationships with related contexts automatically
   - Generates meaningful titles from content
 
 **Example Usage:**
 ```
-store_context(
-  content="JWT authentication with Google OAuth and username/password fallback",
-  category="auth"
-)
+store_context(content="JWT authentication with Google OAuth and username/password fallback")
 ```
 
-### 3. **`get_context`**
-- **Purpose**: Retrieve contexts about a specific topic
+### 2. **`get_context`**
+- **Purpose**: Retrieve contexts about a specific topic using semantic search
 - **Params**: 
-  - `topic` (string, required): What you're looking for (e.g., "authentication setup")
-  - `category` (string, optional): Filter by category for better precision
-  - `max_results` (int, optional): Maximum contexts to return (default: 5)
-- **Output**: Matching contexts with full content, titles, and metadata
-- **Search Method**: Combines semantic similarity + keyword matching + category filtering
+  - `query` (string, required): What you're looking for (e.g., "authentication setup", "JWT tokens")
+- **Output**: Matching contexts with full content, titles, and relevance scores
+- **Search Method**: Pure semantic similarity search across all stored contexts
 
 **Example Usage:**
 ```
-get_context(topic="JWT authentication", category="auth")
-→ Returns all authentication-related contexts
+get_context(query="JWT authentication")
+→ Returns all authentication-related contexts ranked by relevance
 ```
 
-### 4. **`get_related_contexts`**
+### 3. **`get_related_contexts`**
 - **Purpose**: Find everything connected to or related to a specific topic
 - **Params**: 
-  - `topic` (string, required): Central topic to explore
-  - `category` (string, optional): Starting category filter
-  - `depth` (int, optional): How deep to search relationships (default: 2)
+  - `query` (string, required): Central topic to explore relationships around
 - **Output**: Related contexts with relationship types and connection paths
-- **Discovery Method**: Uses knowledge graph traversal + semantic similarity
+- **Discovery Method**: Uses knowledge graph traversal + semantic similarity from query
 
 **Example Usage:**
 ```
-get_related_contexts(topic="user authentication", category="auth")
+get_related_contexts(query="user authentication")
 → Returns: OAuth setup, session management, password hashing, login forms, etc.
 ```
 
-### 5. **`delete_context`**
-- **Purpose**: Remove contexts about a specific topic
-- **Params**: 
-  - `topic` (string, required): Description of what to delete
-  - `category` (string, optional): Limit search to specific category  
-  - `confirm` (boolean, optional): Skip confirmation prompt (default: false)
-- **Output**: Contexts found for deletion, dependency warnings, deletion results
+### 4. **`delete_all_contexts`**
+- **Purpose**: Completely clear all stored contexts (nuclear option)
+- **Params**: None
+- **Output**: Confirmation of total contexts deleted
 - **Safety Features**: 
-  - Shows what will be deleted before doing it
-  - Warns about dependent contexts
-  - Option to update context instead of deleting
+  - Shows total count before deletion
+  - Irreversible operation warning
 
 **Example Usage:**
 ```
-delete_context(topic="old PayPal integration", category="api")
-→ Finds PayPal contexts, shows dependencies, confirms before deletion
+delete_all_contexts()
+→ Deletes all contexts after confirmation
 ```
 
 ## LLM Workflow Pattern
 
 **Typical LLM interaction flow:**
 
-1. **Discover categories**: `list_categories()` to see what's available
-2. **Store new info**: `store_context(content="...", category="auth")`  
-3. **Retrieve context**: `get_context(topic="authentication", category="auth")`
-4. **Explore connections**: `get_related_contexts(topic="auth setup")`
-5. **Clean up**: `delete_context(topic="old auth method")`
+1. **Store new info**: `store_context(content="JWT authentication with Google OAuth...")`  
+2. **Retrieve context**: `get_context(query="authentication")`
+3. **Explore connections**: `get_related_contexts(query="auth setup")`
+4. **Nuclear reset**: `delete_all_contexts()` (when starting fresh)
 
 ## Tool Coordination Behind the Scenes
 
@@ -218,14 +190,13 @@ System: 🗺️  Connection found: Authentication → User Sessions → Payment 
         🔗 3 hop connection with 'depends_on' relationships
 ```
 
-### Smart Deletion
+### Complete Reset
 ```
-User: "Delete the old payment context about PayPal - we switched to Stripe"
-System: 🔍 Found 'PayPal Payment Integration' 
-        ⚠️  This context has 2 dependencies: 'Checkout Flow' and 'Refund Process'
-        💡 Options: Delete only | Delete cascade | Update to mention migration
-User: "Update to mention migration"
-System: ✅ Updated context to document PayPal → Stripe migration
+User: "Clear all context - starting fresh with new architecture"
+System: ⚠️  About to delete ALL contexts (47 total)
+        💀 This action is irreversible!
+User: "Confirm"
+System: ✅ Deleted all 47 contexts. Fresh slate ready!
 ```
 
 ## Benefits
