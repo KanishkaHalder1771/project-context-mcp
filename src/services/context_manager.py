@@ -9,6 +9,7 @@ import os
 import json
 import requests
 from typing import Dict, Any
+from openai import OpenAI
 
 # Import GraphBuilder from storage.graph
 from ..storage.graph import GraphBuilder
@@ -69,10 +70,6 @@ class ContextManager:
     async def _unify_context_with_llm(self, existing_context: str, new_context: str) -> str:
         """Use LLM to unify existing and new context"""
         try:
-            # Temporary URL and API key for testing
-            api_url = "https://api.example.com/v1/chat/completions"  # Replace with actual LLM API
-            api_key = "dummy-api-key-12345"  # Replace with actual API key
-            
             prompt = f"""You are a technical documentation assistant. Your task is to unify and organize software architecture discussions.
 
 EXISTING CONTEXT:
@@ -90,32 +87,22 @@ Please create a unified, well-organized markdown document that:
 
 Return only the unified markdown content without any additional commentary.  Just the markdown content"""
 
-            payload = {
-                "model": "gpt-3.5-turbo",  # Adjust model as needed
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 4000,
-                "temperature": 0.3
-            }
-            
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            
+            client = OpenAI(
+                api_key=os.getenv("SAMBANOVA_API_KEY"),
+                base_url="https://api.sambanova.ai/v1",
+            )
+
             print("🤖 ContextManager: Calling LLM to unify context...")
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+            response = client.chat.completions.create(
+                model="DeepSeek-V3.1",
+                messages=[{"role":"system","content":"You are a helpful assistant"},{"role":"user","content":prompt}],
+                temperature=0.1,
+                top_p=0.1
+            )
             
-            if response.status_code == 200:
-                result = response.json()
-                unified_content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-                print("✅ ContextManager: LLM successfully unified context")
-                return unified_content
-            else:
-                print(f"⚠️ ContextManager: LLM API error {response.status_code}: {response.text}")
-                # Fallback: simple concatenation
-                return self._simple_context_merge(existing_context, new_context)
+            unified_content = response.choices[0].message.content
+            print("✅ ContextManager: LLM successfully unified context")
+            return unified_content
                 
         except Exception as e:
             print(f"❌ ContextManager: LLM unification failed: {e}")
@@ -135,10 +122,6 @@ Return only the unified markdown content without any additional commentary.  Jus
             # Read existing doc content
             doc_content = self._read_existing_doc()
             
-            # Temporary URL and API key for testing
-            api_url = "https://api.example.com/v1/chat/completions"  # Replace with actual LLM API
-            api_key = "dummy-api-key-12345"  # Replace with actual API key
-            
             prompt = f"""This is what my current project looks like:
 {doc_content}
 
@@ -146,28 +129,20 @@ Query: {query}
 
 Answer the query based on the context provided. Just the answer."""
 
-            payload = {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 4000,
-                "temperature": 0.3
-            }
+            client = OpenAI(
+                api_key=os.getenv("SAMBANOVA_API_KEY"),
+                base_url="https://api.sambanova.ai/v1",
+            )
+
+            response = client.chat.completions.create(
+                model="DeepSeek-V3.1",
+                messages=[{"role":"system","content":"You are a helpful assistant"},{"role":"user","content":prompt}],
+                temperature=0.1,
+                top_p=0.1
+            )
             
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                result = response.json()
-                answer = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-                return answer
-            else:
-                return f"Error: API request failed with status {response.status_code}"
+            answer = response.choices[0].message.content
+            return answer
                 
         except Exception as e:
             return f"Error: {str(e)}"
