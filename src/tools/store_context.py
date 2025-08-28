@@ -20,16 +20,16 @@ def register_store_context_tool(server, context_manager=None):
         return [
             types.Tool(
                 name="store_context",
-                description="Store context about software architecture discussions into the knowledge graph. This tool is used to capture and store information about software components, technologies, architectural decisions, and their relationships from ongoing conversations about software design and architecture.",
+                description="Store context about software architecture discussions into a database. Give a blob of text with details about the software, it will be stored in as Software service components, techonology and architecture decisions.",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "context": {
                             "type": "string",
-                            "description": "Cypher query to execute for storing context in the knowledge graph"
+                            "description": "Text describing the software, techonology and architecture decisions."
                         }
                     },
-                    "required": ["query"]
+                    "required": ["context"]
                 }
             )
         ]
@@ -39,16 +39,16 @@ def register_store_context_tool(server, context_manager=None):
     async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         """Handle tool calls"""
         if name == "store_context":
-            query = arguments.get("query", "")
+            context = arguments.get("context", "")
             
-            if not query or not query.strip():
+            if not context or not context.strip():
                 return [types.TextContent(
                     type="text",
-                    text='{"success": false, "message": "Query cannot be empty"}'
+                    text='{"success": false, "message": "Context cannot be empty"}'
                 )]
             
-            # Use the ContextManager to query the graph
-            result = await context_manager.store_context(query.strip())
+            # Use the ContextManager to store the context
+            result = await context_manager.store_context(context.strip())
             
             import json
             return [types.TextContent(

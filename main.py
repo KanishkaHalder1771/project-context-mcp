@@ -36,6 +36,28 @@ async def store_context(context: str) -> str:
     except Exception as e:
         return json.dumps({"success": False, "message": str(e)}, indent=2)
 
+# add get_context tool
+@mcp.tool()
+async def get_context(query: str) -> str:
+    """
+    Get context by answering a query based on the stored project documentation.
+    
+    Args:
+        query: Question about the project context and architecture.
+        
+    Returns:
+        Answer based on the stored project documentation
+    """
+    if not query or not query.strip():
+        return "Query cannot be empty"
+    
+    # Use the ContextManager to answer the query
+    try:
+        answer = await context_manager.answer_query(query.strip())
+        return answer
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 if __name__ == "__main__":
     # Run with increased timeout for long-running operations
     mcp.run(
