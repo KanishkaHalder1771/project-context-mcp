@@ -10,6 +10,7 @@ from neo4j_graphrag.experimental.components.resolver import BasePropertySimilari
 from neo4j_graphrag.experimental.pipeline.config.template_pipeline.simple_kg_builder import SimpleKGPipelineConfig
 from neo4j_graphrag.experimental.components.types import ResolutionStats
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
+from openai import AzureOpenAI
 
 import sys
 from pathlib import Path
@@ -26,7 +27,7 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
         resolve_properties=None,
         similarity_threshold=0.8,
         neo4j_database=None,
-        llm=None
+        llm: Optional[AzureOpenAI] = None
     ):
         super().__init__(driver, filter_query, resolve_properties, similarity_threshold, neo4j_database)
         self.llm = llm  # Small 3B LLM will be injected here
@@ -217,38 +218,45 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
             
             # Make API call to local vLLM server
             import requests
-            import json            
+            import json    
 
-            api_url = "http://localhost:8000/v1/chat/completions"
-            payload = json.dumps({
-            "model": "Qwen/Qwen3-1.7B",
-            "messages": [
-                {
-                "role": "system",
-                "content": "You are a helpful assistant."
-                },
-                {
-                "role": "user",
-                "content": prompt
-                }
-            ],
-            "max_tokens": 2000
-            })
-            headers = {
-            'Content-Type': 'application/json'
-            }
+            response = self.llm.chat.completions.create(
+                model="gpt-5-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            # api_url = "http://localhost:8000/v1/chat/completions"
+            # payload = json.dumps({
+            # "model": "Qwen/Qwen3-1.7B",
+            # "messages": [
+            #     {
+            #     "role": "system",
+            #     "content": "You are a helpful assistant."
+            #     },
+            #     {
+            #     "role": "user",
+            #     "content": prompt
+            #     }
+            # ],
+            # "max_tokens": 2000
+            # })
+            # headers = {
+            # 'Content-Type': 'application/json'
+            # }
 
-            response = requests.request("POST", api_url, headers=headers, data=payload)
+            # response = requests.request("POST", api_url, headers=headers, data=payload)
             
             # response = requests.post(api_url, json=payload, headers={'Content-Type': 'application/json'})
-            response_data = response.json()
-            score_text = response_data['choices'][0]['message']['content'].strip()
+            # print(response)
+            score_text = response.choices[0].message.content.strip()
             
             print(f"Comparing {node_type} Components:")
             print(f"  Node1: {name_a}")
             print(f"  Node2: {name_b}")
             print(f"Score text: {score_text}")
-            print(f"Response: {response_data}")
+            print(f"Response: {response}")
             # Try to parse the score as a float
             try:
                 similarity_score = float(score_text)
@@ -278,7 +286,7 @@ class CustomKGPipelineConfig(SimpleKGPipelineConfig):
 
     entity_resolution_type: str = "llm"
     resolution_similarity_threshold: float = 0.8
-    slm: Optional[LLMInterface] = None
+    slm: AzureOpenAI = None
     
     def __init__(self, entity_resolution_type="exact", resolution_similarity_threshold=0.8, slm: Optional[LLMInterface] = None, **kwargs):
         super().__init__(**kwargs)

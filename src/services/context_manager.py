@@ -33,31 +33,25 @@ class ContextManager:
             )
             print("✅ ContextManager: GraphBuilder singleton initialized")
     
-    async def store_context(self, content: str) -> Dict[str, Any]:
-        """
-        Store context using GraphBuilder - simple implementation
-        
-        Args:
-            content: The context content to store
-            
-        Returns:
-            Simple dict with success status and message
-        """
+    async def store_context(self, text: str) -> Dict[str, Any]:
         try:
-            print(f"🔍 ContextManager: Storing context (length: {len(content)} chars)")
+            print(f"🔍 ContextManager: Executing graph query: {text[:100]}...")
             
-            # Use GraphBuilder to process and store the content
-            self._graph_builder.build_graph_from_text_sync(content)
-            print("✅ ContextManager: Content successfully processed by GraphBuilder")
+            # Use GraphBuilder to query the graph
+            results = self._graph_builder.build_graph_from_text(text)
+            print(f"✅ ContextManager: Query executed successfully, {len(results)} results")
             
             return {
                 'success': True,
-                'message': 'Context stored successfully'
+                'results': [dict(record) for record in results],
+                'count': len(results)
             }
             
         except Exception as e:
-            print(f"❌ ContextManager: Failed to store context: {str(e)}")
+            print(f"❌ ContextManager: Failed to execute query: {str(e)}")
             return {
                 'success': False,
-                'message': 'Failed to insert context'
+                'message': f'Failed to execute query: {str(e)}',
+                'results': [],
+                'count': 0
             } 

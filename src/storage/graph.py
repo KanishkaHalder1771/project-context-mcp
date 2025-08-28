@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from config import settings, AzureConfig
-
+from openai import AzureOpenAI
 
 
 
@@ -163,10 +163,10 @@ Input text:
                 #         "presence_penalty": 0.0
                 #     }
                 # )
-                slm = OpenAILLM(
-                    model_name="Qwen/Qwen3-1.7B",
+                slm = AzureOpenAI(
                     api_key=self.azure_slm_config.api_key,
-                    base_url="http://localhost:8000/v1"
+                    azure_endpoint=self.azure_slm_config.endpoint,
+                    api_version=self.azure_slm_config.api_version
                 )
                 print(f"✅ Small LLM initialized: {self.azure_slm_config.deployment_name}")
             except Exception as e:

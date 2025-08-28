@@ -1,40 +1,23 @@
-#!/usr/bin/env python3
-"""
-Project Context MCP Server - Main Entry Point
+# #!/usr/bin/env python3
+# """
+# Project Context MCP Server - Main Entry Point
 
-A smart context management system for coding projects that uses
-knowledge graphs and vector databases for intelligent storage and retrieval.
-"""
+# A smart context management system for coding projects that uses
+# knowledge graphs and vector databases for intelligent storage and retrieval.
+# """
 
-import asyncio
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
+# import sys
+# import os
 
-from .services.context_manager import ContextManager
-from .tools import register_all_tools
+# # Add the project root to the path so we can import server
+# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# from server import mcp
 
-async def main():
-    """Main entry point for the MCP server"""
-    print("🚀 Project Context MCP Server - Starting...")
-    
-    # Initialize the context manager (singleton GraphBuilder)
-    context_manager = ContextManager()
-    print("✅ ContextManager initialized")
-    
-    # Create MCP server
-    server = Server("project-context")
-    print("✅ MCP Server created")
-    
-    # Register all tools
-    register_all_tools(server, context_manager)
-    print("✅ MCP Tools registered")
-    
-    # Start the server with stdio transport
-    print("🔌 Starting MCP server with stdio transport...")
-    async with stdio_server() as streams:
-        await server.run(streams[0], streams[1])
+# # Import tools so they get registered via decorators
+# import tools.context_tools
 
-
-if __name__ == "__main__":
-    asyncio.run(main()) 
+# # Entry point to run the server
+# if __name__ == "__main__":
+#     print("🚀 Project Context MCP Server - Starting with FastMCP...")
+#     mcp.run() 

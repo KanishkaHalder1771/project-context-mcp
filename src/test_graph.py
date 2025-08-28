@@ -126,7 +126,7 @@ Once the background verification process is complete, the worker will update the
 """ 
     convo3 = "The Frontend will also be connected to a Live monitoring service (Posthog) to capture user sessions, this will keep collecting user session data from time to time."
     
-    conversation = convo3
+    conversation = convo1
     print("Testing simple conversation:")
     print(conversation)
     print("-" * 50)
