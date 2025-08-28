@@ -61,7 +61,6 @@ class ContextManager:
         try:
             with open(doc_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print(f"✅ ContextManager: Updated doc.md at {doc_path}")
             return True
         except Exception as e:
             print(f"❌ ContextManager: Error writing doc.md: {e}")

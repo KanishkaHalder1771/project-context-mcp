@@ -1,28 +1,47 @@
-# Software Architecture Documentation
+# System Architecture: Go-based Worker Service with RabbitMQ and Supabase
 
-Redis Integration Decision for Project-Context MCP
+## Overview
 
-DECISION:
-The project-context MCP system will now integrate Redis as a core component.
+We are introducing a dedicated Go-based worker service as part of the system architecture to handle background tasks asynchronously, separate from the main application flow.
 
-CONTEXT:
-This decision follows previous discussions about implementing a Go-based worker service architecture for background task processing. Redis will likely serve as the message queue/task queue component in the system architecture.
+## Key Components
 
-INTEGRATION POINTS:
-- Redis will be used as the message queue solution for the Go worker service
-- Supports the task queue + worker pattern discussed earlier
-- Will handle job queuing for background verification tasks
-- Enables asynchronous processing separate from main application flow
+### Message Queue: RabbitMQ
+- **Exchange**: "user_events"
+- **Queues**: 
+  - "user_verification_queue"
+  - "profile_enrichment_queue"
+  - "email_validation_queue"
+- **Message Structure**: Includes event_type, user_id, email, timestamp, and metadata
 
-TECHNICAL IMPLICATIONS:
-- Need to add Redis client dependencies to the project
-- Redis connection configuration required
-- Job serialization/deserialization logic needed
-- Queue monitoring and management capabilities
-- Integration with existing context management system
+### Database: Supabase
+- **Users Table**: Contains verification_status, verification_completed_at, profile_enriched_at fields
+- **Background_jobs Table**: Tracks job processing with the following fields:
+  - id, user_id, job_type, status, attempts, error_message, timestamps
 
-ARCHITECTURE FIT:
-Redis fits well with the previously discussed architecture:
-Frontend → API → Database + Redis Queue → Go Worker → Database Update
+## Workflow
 
-This decision establishes Redis as the chosen message queue solution over other options like RabbitMQ or PostgreSQL-based queuing that were previously considered.
+1. **Event Publishing**: Frontend publishes user signup events to RabbitMQ
+2. **Job Consumption**: Go worker consumes verification jobs from designated queues
+3. **Background Processing**: Worker performs verification tasks including:
+   - Email validation
+   - Profile enrichment
+   - Fraud detection
+4. **Database Update**: Worker updates Supabase database with verification results
+5. **Status Display**: Frontend displays latest verification status without blocking the initial signup experience
+
+## Architectural Benefits
+
+- **Enhanced User Experience**: Keeps user experience fast and responsive
+- **Reliability**: Robust and scalable verification process
+- **Asynchronous Processing**: Non-blocking operations with retry mechanisms
+- **Scalability**: Horizontal scaling capability with multiple worker instances
+
+## Implementation Features
+
+- **Worker Pools**: Configurable concurrency settings
+- **Circuit Breakers**: For external API calls to prevent cascading failures
+- **Retry Mechanisms**: Exponential backoff strategy for failed operations
+- **Error Handling**: Dead letter queues for managing failed jobs
+- **Observability**: Comprehensive logging and monitoring capabilities
+- **Data Integrity**: Idempotent job processing to ensure consistency

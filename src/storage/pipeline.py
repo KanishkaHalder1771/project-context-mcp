@@ -5,6 +5,7 @@ Neo4j Knowledge Graph Pipeline Components
 from typing import Optional, Union, Any, Sequence, List
 import neo4j
 import os
+import asyncio
 from neo4j_graphrag.llm.base import LLMInterface
 from neo4j_graphrag.embeddings.base import Embedder
 from neo4j_graphrag.experimental.components.resolver import BasePropertySimilarityResolver
@@ -87,8 +88,15 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
 
             # compute pairwise similarity within the same node type and mark those above the threshold
             pairs_to_merge = []
-            for (id1, name1), (id2, name2) in combinations(node_names.items(), 2):
-                sim = self.compute_similarity(name1, name2, node_type)
+            
+            # Create all comparison pairs
+            comparison_pairs = list(combinations(node_names.items(), 2))
+            
+            # Run similarity computations in parallel with max 10 concurrent calls
+            similarities = await self._compute_similarities_parallel(comparison_pairs, node_type)
+            
+            # Filter pairs that meet the threshold
+            for ((id1, name1), (id2, name2)), sim in zip(comparison_pairs, similarities):
                 if sim >= self.similarity_threshold:
                     pairs_to_merge.append({id1, id2})
 
@@ -153,6 +161,28 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
             number_of_nodes_to_resolve=total_entities,
             number_of_created_nodes=total_merged_nodes,
         )
+
+    async def _compute_similarities_parallel(self, comparison_pairs, node_type: str) -> List[float]:
+        """
+        Compute similarities in parallel with a maximum of 10 concurrent calls
+        """
+        semaphore = asyncio.Semaphore(10)  # Limit to 10 concurrent calls
+        
+        async def compute_single_similarity(pair):
+            async with semaphore:
+                (id1, name1), (id2, name2) = pair
+                # Run the synchronous compute_similarity in a thread pool
+                return await asyncio.get_event_loop().run_in_executor(
+                    None, self.compute_similarity, name1, name2, node_type
+                )
+        
+        # Create tasks for all pairs
+        tasks = [compute_single_similarity(pair) for pair in comparison_pairs]
+        
+        # Wait for all tasks to complete
+        similarities = await asyncio.gather(*tasks)
+        
+        return similarities
     
     def compute_similarity(self, name_a: str, name_b: str, node_type: str) -> float:
         """
@@ -225,24 +255,26 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
             import requests
             import json    
 
-            # response = self.llm.chat.completions.create(
-            #     model="gpt-5-mini",
-            #     messages=[
-            #         {"role": "system", "content": "You are a helpful assistant."},
-            #         {"role": "user", "content": prompt}
-            #     ]
+            response = self.llm.chat.completions.create(
+                model="gpt-5-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            # client = OpenAI(
+            #     api_key=os.getenv("SAMBANOVA_API_KEY"),
+            #     base_url="https://api.sambanova.ai/v1",
             # )
-            client = OpenAI(
-                api_key=os.getenv("SAMBANOVA_API_KEY"),
-                base_url="https://api.sambanova.ai/v1",
-            )
 
-            response = client.chat.completions.create(
-                model="DeepSeek-V3.1",
-                messages=[{"role":"system","content":"You are a helpful assistant"},{"role":"user","content":prompt}],
-                temperature=0.1,
-                top_p=0.1
-            )
+            # response = client.chat.completions.create(
+            #     model="DeepSeek-V3.1",
+            #     messages=[{"role":"system","content":"You are a helpful assistant"},{"role":"user","content":prompt}],
+            #     temperature=0.1,
+            #     top_p=0.1
+            # )
+
+            # ------------------------------------------------------------
             # api_url = "http://localhost:8000/v1/chat/completions"
             # payload = json.dumps({
             # "model": "Qwen/Qwen3-1.7B",
