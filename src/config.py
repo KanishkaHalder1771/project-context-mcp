@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     azure_slm_api_key: Optional[str] = None
     azure_slm_api_version: str = "2025-01-01-preview"
     azure_slm_deployment_name: Optional[str] = None
+
+    # Sambanova API Key
+    sambanova_api_key: Optional[str] = None
     
     class Config:
         env_file = ".env"

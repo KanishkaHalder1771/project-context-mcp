@@ -4,6 +4,7 @@ Neo4j Knowledge Graph Pipeline Components
 
 from typing import Optional, Union, Any, Sequence, List
 import neo4j
+import os
 from neo4j_graphrag.llm.base import LLMInterface
 from neo4j_graphrag.embeddings.base import Embedder
 from neo4j_graphrag.experimental.components.resolver import BasePropertySimilarityResolver
