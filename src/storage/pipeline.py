@@ -11,6 +11,10 @@ from neo4j_graphrag.experimental.pipeline.config.template_pipeline.simple_kg_bui
 from neo4j_graphrag.experimental.components.types import ResolutionStats
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from openai import AzureOpenAI
+from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
+
 
 import sys
 from pathlib import Path
@@ -220,12 +224,23 @@ class LLMSimilarityResolver(BasePropertySimilarityResolver):
             import requests
             import json    
 
-            response = self.llm.chat.completions.create(
-                model="gpt-5-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ]
+            # response = self.llm.chat.completions.create(
+            #     model="gpt-5-mini",
+            #     messages=[
+            #         {"role": "system", "content": "You are a helpful assistant."},
+            #         {"role": "user", "content": prompt}
+            #     ]
+            # )
+            client = OpenAI(
+                api_key=os.getenv("SAMBANOVA_API_KEY"),
+                base_url="https://api.sambanova.ai/v1",
+            )
+
+            response = client.chat.completions.create(
+                model="DeepSeek-V3.1",
+                messages=[{"role":"system","content":"You are a helpful assistant"},{"role":"user","content":prompt}],
+                temperature=0.1,
+                top_p=0.1
             )
             # api_url = "http://localhost:8000/v1/chat/completions"
             # payload = json.dumps({
