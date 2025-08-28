@@ -37,14 +37,15 @@ class ContextManager:
         try:
             print(f"🔍 ContextManager: Executing graph query: {text[:100]}...")
             
-            # Use GraphBuilder to query the graph
-            results = self._graph_builder.build_graph_from_text(text)
-            print(f"✅ ContextManager: Query executed successfully, {len(results)} results")
+            # Use GraphBuilder to build the graph (async operation)
+            await self._graph_builder.build_graph_from_text(text)
+            print(f"✅ ContextManager: Graph built successfully from text")
+            
+           
             
             return {
                 'success': True,
-                'results': [dict(record) for record in results],
-                'count': len(results)
+                'message': 'Graph built successfully from text'
             }
             
         except Exception as e:
@@ -52,6 +53,6 @@ class ContextManager:
             return {
                 'success': False,
                 'message': f'Failed to execute query: {str(e)}',
-                'results': [],
+                'results': {},
                 'count': 0
             } 
