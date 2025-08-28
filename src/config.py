@@ -63,6 +63,12 @@ class Settings(BaseSettings):
 
     # Sambanova API Key
     sambanova_api_key: Optional[str] = None
+
+    #galileo
+    galileo_api_key: Optional[str] = None
+    galileo_project: Optional[str] = None
+    galileo_log_stream: Optional[str] = None
+
     
     class Config:
         env_file = ".env"
